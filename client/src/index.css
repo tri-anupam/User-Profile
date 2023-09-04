@@ -1,5 +1,14 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 * {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+  font-family: "Nunito", sans-serif;
+  font-family: "Poppins", sans-serif;
+}
+body {
+  height: 100vh;
+  background-image: url("./assets/background.webp");
+  background-size: cover;
+  background-repeat: no-repeat;
 }
