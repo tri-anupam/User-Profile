@@ -1,6 +1,7 @@
 import UserModel from "../model/User.model.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
+import otpGenerator from "otp-generator";
 
 //middleware for verify user
 export async function verifyUser(req, res, next) {
@@ -15,7 +16,6 @@ export async function verifyUser(req, res, next) {
         .send({ error: "Can't find user middleware error" });
     next();
   } catch (error) {
-    console.log(error);
     return res.status(404).send({ error: "Authentication error" });
   }
 }
@@ -46,7 +46,6 @@ export async function register(req, res) {
       success: true,
     });
   } catch (error) {
-    console.log(error);
     res.status(500).send({
       success: false,
       message: `Register controller ${error.message}`,
@@ -88,7 +87,6 @@ export async function login(req, res) {
       token,
     });
   } catch (error) {
-    console.log(error);
     res.status(500).send({
       message: `Error in login ctrl ${error.message}`,
       success: false,
@@ -117,7 +115,6 @@ export async function getUser(req, res) {
       singleUser,
     });
   } catch (error) {
-    console.log(error);
     res.status(500).send({
       message: "Error while fetching user",
       success: false,
@@ -129,9 +126,9 @@ export async function getUser(req, res) {
 //!PUT-->UPDATE USER
 export async function updateUser(req, res) {
   try {
-    const _id = req.query.id;
+    const { UserId } = req.user;
 
-    if (_id) {
+    if (UserId) {
       const body = req.body;
 
       // Check if the "password" field is included in the request body
@@ -140,7 +137,7 @@ export async function updateUser(req, res) {
       }
 
       //update the data
-      const updateUser = await UserModel.findByIdAndUpdate(_id, body, {
+      const updateUser = await UserModel.updateOne({ _id: UserId }, body, {
         new: true,
       });
       updateUser.password = undefined;
@@ -154,7 +151,6 @@ export async function updateUser(req, res) {
       return res.status(401).send({ error: "User Not Found...!" });
     }
   } catch (error) {
-    console.log(error);
     res.status(401).send({
       message: "Error while updating user",
       success: false,
@@ -165,22 +161,63 @@ export async function updateUser(req, res) {
 
 //!GET-->GENERATE OTP
 export async function generateOTP(req, res) {
-  res.json("generateOTP route");
+  req.app.locals.OTP = await otpGenerator.generate(6, {
+    lowerCaseAlphabets: false,
+    upperCaseAlphabets: false,
+    specialChars: false,
+  });
+  res.status(201).send({ code: req.app.locals.OTP });
 }
 
 //!GET-->VERIFY OTP
 export async function verifyOTP(req, res) {
-  res.json("verifyOTP route");
+  const { code } = req.query;
+  if (parseInt(req.app.locals.OTP) === parseInt(code)) {
+    req.app.locals.OTP = null; //reset the OTP value
+    req.app.locals.resetSession = true; //start session for reset password
+    return res.status(201).send({ message: "verify Successfully!" });
+  }
+  return res.status(400).send({ error: "Invalid OTP" });
 }
 
 //successfully redirect user when OTP is valid
 //!GET-->CREATE RESET SESSION
 export async function createResetSession(req, res) {
-  res.json("createResetSession route");
+  if (req.app.locals.resetSession) {
+    req.app.locals.resetSession = false; //allow access to this route only once
+    return res.status(201).send({ message: "Access Granted!" });
+  }
+  return res.status(404).send({ error: "Invalid/Expired  Session" });
 }
 
 //update the password when we have valid session
 //!PUT-->RESET PASSWORD
 export async function resetPassword(req, res) {
-  res.json("resetPassword route");
+  try {
+    if (!req.app.locals.resetSession)
+      return res.status(404).send({ error: "Invalid/Expired  Session" });
+    const { username, password } = req.body;
+
+    // Find the user by username
+    const user = await UserModel.findOne({ username });
+
+    if (!user) {
+      return res.status(404).send({ error: "Username not found" });
+    }
+
+    // Hash the new password
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Update the user's password using `exec()`
+    await UserModel.updateOne(
+      { username: user.username },
+      { password: hashedPassword }
+    ).exec();
+    req.app.locals.resetSession = false;
+    return res.status(201).send({ message: "Password reset successfully" });
+  } catch (error) {
+    return res
+      .status(500)
+      .send({ error: "An error occurred while resetting the password" });
+  }
 }
