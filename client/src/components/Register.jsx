@@ -6,6 +6,7 @@ import { Toaster } from "react-hot-toast";
 import { useFormik } from "formik";
 import { registerValidation } from "../helper/validate.js";
 import convertToBase64 from "../helper/convert";
+// import { registerUser } from "../helper/helper";
 
 const Register = () => {
   const [file, setFile] = useState();
@@ -21,7 +22,7 @@ const Register = () => {
     validateOnChange: false,
     onSubmit: async (values) => {
       values = await Object.assign(values, { profile: file || "" });
-      console.log(values);
+      // registerUser(values);
     },
   });
 
